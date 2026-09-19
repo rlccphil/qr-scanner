@@ -289,6 +289,7 @@
   let animationId = null;
   let lastDecodeTime = 0;
   let scanBusy = false;
+  let scanFrameCount = 0;
   let recorded = [];
   let scanMode = 'single'; // single = stop after one successful scan; multiple = keep scanning
 
@@ -346,8 +347,9 @@
       stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: { ideal: 'environment' },
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
+          width: { ideal: 960 },
+          height: { ideal: 540 },
+          frameRate: { ideal: 30, max: 30 }
         },
         audio: false
       });
@@ -395,28 +397,51 @@
     animationId = requestAnimationFrame(scanLoop);
 
     if (!video.videoWidth || !video.videoHeight) return;
-    if (timestamp - lastDecodeTime < 120) return;
+    if (timestamp - lastDecodeTime < 80) return;
 
     lastDecodeTime = timestamp;
+    scanFrameCount++;
 
-    const maxWidth = 1100;
-    const scale = Math.min(1, maxWidth / video.videoWidth);
-    const w = Math.round(video.videoWidth * scale);
-    const h = Math.round(video.videoHeight * scale);
+    // The QR guide is centered, so scan the central area instead of the
+    // entire camera frame. This greatly reduces jsQR processing time.
+    const sourceW = video.videoWidth;
+    const sourceH = video.videoHeight;
+    const cropW = Math.round(sourceW * 0.82);
+    const cropH = Math.round(sourceH * 0.82);
+    const cropX = Math.round((sourceW - cropW) / 2);
+    const cropY = Math.round((sourceH - cropH) / 2);
+
+    const maxWidth = 760;
+    const scale = Math.min(1, maxWidth / cropW);
+    const w = Math.max(320, Math.round(cropW * scale));
+    const h = Math.max(240, Math.round(cropH * scale));
 
     canvas.width = w;
     canvas.height = h;
-    ctx.drawImage(video, 0, 0, w, h);
+    ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, w, h);
 
     const imageData = ctx.getImageData(0, 0, w, h);
 
     try {
-      const code = jsQR(
+      // Most RLCC QR codes are standard black-on-white QR codes.
+      // Try the fast normal decode on every frame.
+      let code = jsQR(
         imageData.data,
         imageData.width,
         imageData.height,
-        { inversionAttempts: 'attemptBoth' }
+        { inversionAttempts: 'dontInvert' }
       );
+
+      // Only try inverted QR decoding periodically. This avoids doing the
+      // expensive second pass on every frame.
+      if (!code && scanFrameCount % 6 === 0) {
+        code = jsQR(
+          imageData.data,
+          imageData.width,
+          imageData.height,
+          { inversionAttempts: 'onlyInvert' }
+        );
+      }
 
       if (code && code.data && !scanBusy) {
         recordDecodedQr(code.data);
