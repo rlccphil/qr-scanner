@@ -1,179 +1,294 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <base target="_top">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>RLCC QR Camera Test</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RLCC QR Scanner</title>
+
+  <!-- More robust QR decoder for this test -->
+  <script src="https://unpkg.com/@zxing/browser@0.1.5/umd/index.min.js"></script>
+
   <style>
+    :root { --green:#365233; }
+    * { box-sizing:border-box; }
+
     body {
-      font-family: Arial, sans-serif;
-      margin: 0;
-      padding: 20px;
-      background: #f5f5f5;
-      color: #222;
+      margin:0;
+      background:#f5f6f4;
+      color:#222;
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
     }
+
+    main {
+      width:100%;
+      max-width:520px;
+      margin:auto;
+      padding:24px 18px 40px;
+    }
+
     .card {
-      max-width: 520px;
-      margin: 0 auto;
-      background: white;
-      padding: 20px;
-      border-radius: 16px;
-      box-shadow: 0 2px 12px rgba(0,0,0,.08);
+      background:#fff;
+      border-radius:20px;
+      padding:22px;
+      box-shadow:0 4px 18px rgba(0,0,0,.08);
     }
-    h1 { font-size: 22px; margin-top: 0; }
-    button {
-      width: 100%;
-      padding: 14px;
-      margin-top: 10px;
-      border: 0;
-      border-radius: 10px;
-      background: #365233;
-      color: white;
-      font-size: 16px;
-      cursor: pointer;
+
+    h1 {
+      margin:0;
+      color:var(--green);
+      font-size:27px;
     }
-    button:disabled { opacity: .5; }
-    video {
-      width: 100%;
-      margin-top: 16px;
-      border-radius: 12px;
-      background: #111;
-      display: none;
+
+    .sub {
+      margin:6px 0 20px;
+      color:#666;
     }
-    .status {
-      margin-top: 16px;
-      padding: 12px;
-      border-radius: 10px;
-      background: #eee;
-      white-space: pre-wrap;
-      word-break: break-word;
+
+    button, .fileButton {
+      display:block;
+      width:100%;
+      border:0;
+      border-radius:12px;
+      padding:15px;
+      margin-top:10px;
+      font-size:16px;
+      font-weight:700;
+      background:var(--green);
+      color:#fff;
+      text-align:center;
+      cursor:pointer;
     }
-    .small {
-      font-size: 13px;
-      color: #666;
-      line-height: 1.5;
+
+    button.secondary, .fileButton.secondary {
+      background:#e7ece5;
+      color:var(--green);
+    }
+
+    button:disabled {
+      opacity:.45;
+      cursor:default;
+    }
+
+    input[type=file] {
+      display:none;
+    }
+
+    #video {
+      width:100%;
+      margin-top:18px;
+      border-radius:14px;
+      background:#111;
+      display:none;
+    }
+
+    #photoPreview {
+      width:100%;
+      margin-top:18px;
+      border-radius:14px;
+      display:none;
+    }
+
+    #result {
+      margin-top:18px;
+      padding:16px;
+      border-radius:14px;
+      background:#eef2ed;
+      white-space:pre-wrap;
+      word-break:break-word;
+      min-height:72px;
+    }
+
+    .ok {
+      color:var(--green);
+      font-weight:700;
+    }
+
+    .note {
+      margin-top:16px;
+      font-size:13px;
+      line-height:1.5;
+      color:#777;
     }
   </style>
 </head>
+
 <body>
+<main>
   <div class="card">
-    <h1>RLCC QR Camera Test</h1>
+    <h1>RLCC QR Scanner</h1>
+    <p class="sub">Camera + photo QR scanning test</p>
 
-    <p class="small">
-      This is only a camera test. It does not connect to the attendance system
-      and does not save attendance.
+    <button id="startBtn" onclick="startCamera()">📷 Start Camera</button>
+    <button id="stopBtn" class="secondary" onclick="stopCamera()" disabled>Stop Camera</button>
+
+    <label class="fileButton secondary" for="photoInput">
+      🖼️ Scan QR from Photo
+    </label>
+    <input id="photoInput" type="file" accept="image/*" capture="environment" onchange="scanPhoto(event)">
+
+    <video id="video" autoplay muted playsinline></video>
+    <img id="photoPreview" alt="Selected image">
+
+    <div id="result">
+      <span class="ok">Ready.</span> Start the camera or choose a QR photo.
+    </div>
+
+    <p class="note">
+      This version only reads the QR code. It does not record attendance
+      and does not connect to the attendance system.
     </p>
-
-    <button id="startBtn" onclick="startCamera()">Start Camera</button>
-    <button id="stopBtn" onclick="stopCamera()" disabled>Stop Camera</button>
-
-    <video id="video" autoplay playsinline muted></video>
-
-    <div id="status" class="status">Ready. Tap “Start Camera”.</div>
   </div>
+</main>
 
 <script>
-  let stream = null;
+  let reader = null;
+  let controls = null;
+  let running = false;
+  let lastText = "";
 
-  function setStatus(message) {
-    document.getElementById('status').textContent = message;
+  function show(text) {
+    document.getElementById("result").textContent = text;
   }
 
-  function explainError(error) {
-    const name = error && error.name ? error.name : 'UnknownError';
-    const message = error && error.message ? error.message : String(error);
+  function success(text) {
+    lastText = text;
 
-    const explanations = {
-      NotAllowedError:
-        'Camera access was denied or blocked by the browser/site policy.',
-      NotFoundError:
-        'No camera was found on this device.',
-      NotReadableError:
-        'The camera exists, but another app or browser tab may already be using it.',
-      SecurityError:
-        'The browser blocked camera access for security reasons.',
-      TypeError:
-        'The camera API is unavailable. This can happen when the page is not in a secure context.'
-    };
-
-    return (
-      'Camera could not start.\\n\\n' +
-      'Error: ' + name + '\\n' +
-      'Message: ' + message + '\\n\\n' +
-      (explanations[name] || 'Please check the browser camera permission.')
+    show(
+      "✓ QR CODE DETECTED\n\n" +
+      "QR Value:\n" + text
     );
+
+    if (navigator.vibrate) navigator.vibrate(120);
   }
 
   async function startCamera() {
-    const video = document.getElementById('video');
-    const startBtn = document.getElementById('startBtn');
-    const stopBtn = document.getElementById('stopBtn');
-
-    setStatus(
-      'Checking camera support...\\n' +
-      'Secure context: ' + window.isSecureContext + '\\n' +
-      'MediaDevices available: ' + !!navigator.mediaDevices
-    );
+    if (running) return;
 
     if (!window.isSecureContext) {
-      setStatus(
-        'This page is NOT being treated as a secure context.\\n\\n' +
-        'Camera access normally requires HTTPS.'
-      );
+      show("Camera cannot start because this page is not HTTPS.");
       return;
     }
 
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setStatus(
-        'This browser does not provide the camera API (getUserMedia).'
-      );
+    if (!window.ZXingBrowser) {
+      show("The QR decoder library did not load. Please refresh the page.");
       return;
     }
+
+    document.getElementById("startBtn").disabled = true;
+    show("Starting rear camera...");
 
     try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: 'environment' }
-        },
-        audio: false
-      });
+      reader = new ZXingBrowser.BrowserQRCodeReader();
 
-      video.srcObject = stream;
-      video.style.display = 'block';
-      startBtn.disabled = true;
-      stopBtn.disabled = false;
+      const devices = await ZXingBrowser.BrowserCodeReader.listVideoInputDevices();
 
-      const track = stream.getVideoTracks()[0];
-      const settings = track ? track.getSettings() : {};
+      if (!devices || devices.length === 0) {
+        throw new Error("No camera was found.");
+      }
 
-      setStatus(
-        'SUCCESS — the camera is working.\\n\\n' +
-        'Camera: ' + (track ? track.label : 'Unknown') + '\\n' +
-        'Width: ' + (settings.width || 'Unknown') + '\\n' +
-        'Height: ' + (settings.height || 'Unknown')
+      // Prefer the rear/environment camera.
+      let deviceId = devices[0].deviceId;
+      const rear = devices.find(d =>
+        /back|rear|environment|wide/i.test(d.label || "")
       );
+      if (rear) deviceId = rear.deviceId;
+
+      controls = await reader.decodeFromVideoDevice(
+        deviceId,
+        "video",
+        (result, error) => {
+          if (result) {
+            const text = result.getText();
+
+            if (text && text !== lastText) {
+              success(text);
+            }
+          }
+        }
+      );
+
+      running = true;
+      document.getElementById("stopBtn").disabled = false;
+      document.getElementById("video").style.display = "block";
+
+      show("Camera is running.\n\nPoint the camera at an RLCC member QR code.");
     } catch (error) {
-      setStatus(explainError(error));
+      document.getElementById("startBtn").disabled = false;
+
+      show(
+        "CAMERA / SCANNER ERROR\n\n" +
+        (error && error.name ? error.name + "\n" : "") +
+        (error && error.message ? error.message : String(error))
+      );
     }
   }
 
   function stopCamera() {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
-      stream = null;
-    }
+    try {
+      if (controls) controls.stop();
+    } catch (_) {}
 
-    const video = document.getElementById('video');
+    try {
+      if (reader) reader.reset();
+    } catch (_) {}
+
+    controls = null;
+    reader = null;
+    running = false;
+    lastText = "";
+
+    const video = document.getElementById("video");
+    video.pause();
     video.srcObject = null;
-    video.style.display = 'none';
+    video.style.display = "none";
 
-    document.getElementById('startBtn').disabled = false;
-    document.getElementById('stopBtn').disabled = true;
+    document.getElementById("startBtn").disabled = false;
+    document.getElementById("stopBtn").disabled = true;
 
-    setStatus('Camera stopped.');
+    show("Camera stopped.");
   }
 
-  window.addEventListener('pagehide', stopCamera);
+  async function scanPhoto(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+
+    show("Reading the selected photo...");
+
+    const preview = document.getElementById("photoPreview");
+    preview.src = URL.createObjectURL(file);
+    preview.style.display = "block";
+
+    try {
+      if (!window.ZXingBrowser) {
+        throw new Error("The QR decoder library did not load.");
+      }
+
+      const photoReader = new ZXingBrowser.BrowserQRCodeReader();
+
+      const result = await photoReader.decodeFromImageUrl(
+        URL.createObjectURL(file)
+      );
+
+      if (result) {
+        success(result.getText());
+      } else {
+        show(
+          "No QR code was detected in this photo.\n\n" +
+          "Try a closer, sharper photo with the entire QR code visible."
+        );
+      }
+    } catch (error) {
+      show(
+        "NO QR CODE DETECTED\n\n" +
+        "The decoder could not read this photo.\n\n" +
+        "Try taking a closer, sharper photo of the QR code."
+      );
+    }
+
+    event.target.value = "";
+  }
+
+  window.addEventListener("pagehide", stopCamera);
 </script>
 </body>
 </html>
