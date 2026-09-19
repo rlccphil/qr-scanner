@@ -3,90 +3,107 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RLCC QR Scanner Test</title>
-
-  <!-- jsQR: QR decoder -->
+  <title>RLCC QR Scanner</title>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-
   <style>
     * { box-sizing: border-box; }
-
     body {
       margin: 0;
-      padding: 24px 16px 40px;
+      padding: 20px 14px 40px;
       font-family: Arial, sans-serif;
       background: #f5f6f4;
       color: #222;
     }
-
     .card {
       max-width: 520px;
       margin: 0 auto;
-      background: white;
+      background: #fff;
       border-radius: 16px;
-      padding: 24px;
+      padding: 20px;
       box-shadow: 0 4px 20px rgba(0,0,0,.08);
     }
-
-    h1 {
-      margin: 0 0 8px;
-      font-size: 24px;
-    }
-
-    .subtitle {
-      margin: 0 0 22px;
-      color: #666;
-      line-height: 1.5;
-    }
-
-    .upload {
+    h1 { margin: 0 0 7px; font-size: 25px; }
+    .subtitle { margin: 0 0 18px; color: #666; line-height: 1.45; }
+    button, .upload {
       display: block;
       width: 100%;
-      padding: 16px;
-      border: 2px dashed #365233;
+      border: 0;
       border-radius: 12px;
-      text-align: center;
-      color: #365233;
+      padding: 15px;
+      margin-top: 10px;
+      font-size: 16px;
       font-weight: 700;
       cursor: pointer;
-      background: #fafcf9;
     }
+    button {
+      background: #365233;
+      color: white;
+    }
+    button.secondary, .upload {
+      background: #fafcf9;
+      color: #365233;
+      border: 2px dashed #365233;
+    }
+    button:disabled { opacity: .55; cursor: default; }
+    input[type=file] { display: none; }
 
-    input[type="file"] {
+    #cameraBox {
       display: none;
+      margin-top: 18px;
+      position: relative;
+      overflow: hidden;
+      border-radius: 14px;
+      background: #111;
+    }
+    #video {
+      display: block;
+      width: 100%;
+      height: auto;
+      min-height: 260px;
+      object-fit: cover;
+    }
+    .guide {
+      position: absolute;
+      left: 14%;
+      top: 20%;
+      width: 72%;
+      aspect-ratio: 1;
+      border: 3px solid #fff;
+      border-radius: 16px;
+      box-shadow: 0 0 0 9999px rgba(0,0,0,.18);
+      pointer-events: none;
+    }
+    .cameraText {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 12px;
+      text-align: center;
+      color: white;
+      font-weight: 700;
+      text-shadow: 0 1px 3px #000;
     }
 
     .preview {
-      margin-top: 20px;
+      margin-top: 18px;
       text-align: center;
     }
-
     .preview img {
       max-width: 100%;
       max-height: 360px;
       border-radius: 8px;
       border: 1px solid #ddd;
     }
-
     .status {
-      margin-top: 20px;
+      margin-top: 18px;
       padding: 14px;
       border-radius: 10px;
       background: #f0f2ef;
       line-height: 1.5;
       word-break: break-word;
     }
-
-    .success {
-      background: #eaf5e7;
-      color: #23451f;
-    }
-
-    .error {
-      background: #fff0f0;
-      color: #8b1e1e;
-    }
-
+    .success { background: #eaf5e7; color: #23451f; }
+    .error { background: #fff0f0; color: #8b1e1e; }
     .label {
       font-size: 12px;
       text-transform: uppercase;
@@ -94,226 +111,325 @@
       color: #777;
       margin-bottom: 5px;
     }
-
-    .value {
-      font-size: 18px;
-      font-weight: 700;
-    }
-
-    .details {
+    .value { font-size: 18px; font-weight: 700; }
+    .note {
       margin-top: 18px;
-      font-size: 14px;
+      font-size: 13px;
       color: #666;
       line-height: 1.5;
     }
-
-    canvas {
-      display: none;
-    }
+    canvas { display: none; }
   </style>
 </head>
 
 <body>
   <div class="card">
-    <h1>RLCC QR Scanner Test</h1>
+    <h1>RLCC QR Scanner</h1>
     <p class="subtitle">
-      Upload an RLCC member QR image. This test adds the required white
-      quiet zone around the image before decoding.
+      Scan an RLCC member QR code using your camera, or upload a QR image.
     </p>
 
-    <label class="upload" for="fileInput">
-      📷 Scan QR from Photo
-    </label>
+    <button id="startBtn">📷 Start Camera Scan</button>
+    <button id="stopBtn" class="secondary" style="display:none;">Stop Camera</button>
 
+    <div id="cameraBox">
+      <video id="video" playsinline muted></video>
+      <div class="guide"></div>
+      <div class="cameraText">Place the QR inside the square</div>
+    </div>
+
+    <label class="upload" for="fileInput">
+      🖼️ Scan QR from Photo
+    </label>
     <input id="fileInput" type="file" accept="image/*">
 
     <div id="preview" class="preview"></div>
 
     <div id="status" class="status">
-      Waiting for a QR image...
+      Ready.
     </div>
 
     <canvas id="canvas"></canvas>
 
-    <div class="details">
-      <strong>Test target:</strong><br>
-      Edgar Wong QR should decode as
-      <code>RLCCATT:M-8A3F1BF91CDC4724</code>
+    <div class="note">
+      <strong>Camera note:</strong> Your browser must allow camera access.
+      Photo scanning remains available if the camera has difficulty reading a QR.
     </div>
   </div>
 
-  <script>
-    const fileInput = document.getElementById('fileInput');
-    const preview = document.getElementById('preview');
-    const statusBox = document.getElementById('status');
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+<script>
+  const startBtn = document.getElementById('startBtn');
+  const stopBtn = document.getElementById('stopBtn');
+  const cameraBox = document.getElementById('cameraBox');
+  const video = document.getElementById('video');
+  const fileInput = document.getElementById('fileInput');
+  const preview = document.getElementById('preview');
+  const statusBox = document.getElementById('status');
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
-    fileInput.addEventListener('change', function () {
-      const file = this.files && this.files[0];
-      if (!file) return;
+  let stream = null;
+  let scanning = false;
+  let animationId = null;
+  let lastDecodeTime = 0;
 
-      preview.innerHTML = '';
-      statusBox.className = 'status';
-      statusBox.textContent = 'Reading image...';
+  startBtn.addEventListener('click', startCamera);
+  stopBtn.addEventListener('click', stopCamera);
 
-      const reader = new FileReader();
-
-      reader.onload = function (e) {
-        const img = new Image();
-
-        img.onload = function () {
-          const previewImg = document.createElement('img');
-          previewImg.src = e.target.result;
-          preview.appendChild(previewImg);
-
-          decodeWithMultiplePasses(img);
-        };
-
-        img.onerror = function () {
-          showError('The selected image could not be opened.');
-        };
-
-        img.src = e.target.result;
-      };
-
-      reader.onerror = function () {
-        showError('Could not read the selected file.');
-      };
-
-      reader.readAsDataURL(file);
-    });
-
-    function decodeWithMultiplePasses(img) {
-      /*
-       * The RLCC QR images currently touch the edges of the PNG.
-       * A QR code requires a white "quiet zone" around it.
-       *
-       * We therefore try several versions:
-       * 1. Original image with a 10% white border.
-       * 2. Larger border.
-       * 3. Grayscale.
-       * 4. High-contrast black/white.
-       */
-
-      const attempts = [
-        { border: 0.10, mode: 'original' },
-        { border: 0.15, mode: 'original' },
-        { border: 0.20, mode: 'original' },
-        { border: 0.10, mode: 'gray' },
-        { border: 0.15, mode: 'gray' },
-        { border: 0.10, mode: 'threshold' },
-        { border: 0.15, mode: 'threshold' }
-      ];
-
-      for (let i = 0; i < attempts.length; i++) {
-        const result = tryDecode(img, attempts[i].border, attempts[i].mode);
-
-        if (result) {
-          showSuccess(result);
-          return;
-        }
+  async function startCamera() {
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showError('This browser does not support camera access.');
+        return;
       }
 
+      statusBox.className = 'status';
+      statusBox.textContent = 'Requesting camera access...';
+
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
+        audio: false
+      });
+
+      video.srcObject = stream;
+      await video.play();
+
+      cameraBox.style.display = 'block';
+      startBtn.style.display = 'none';
+      stopBtn.style.display = 'block';
+
+      scanning = true;
+      statusBox.textContent = 'Camera is active. Point it at the QR code.';
+      scanLoop();
+
+    } catch (err) {
+      console.error(err);
       showError(
-        'No QR code was decoded from this image. ' +
-        'The decoder tried multiple image-processing methods.'
+        'Camera could not be started. Please allow camera access in Safari/browser settings.'
       );
     }
+  }
 
-    function tryDecode(img, borderRatio, mode) {
-      const maxDimension = 1400;
-      const scale = Math.min(1, maxDimension / Math.max(img.naturalWidth, img.naturalHeight));
+  function stopCamera() {
+    scanning = false;
 
-      const w = Math.max(1, Math.round(img.naturalWidth * scale));
-      const h = Math.max(1, Math.round(img.naturalHeight * scale));
+    if (animationId) {
+      cancelAnimationFrame(animationId);
+      animationId = null;
+    }
 
-      const border = Math.max(20, Math.round(Math.max(w, h) * borderRatio));
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+      stream = null;
+    }
 
-      canvas.width = w + border * 2;
-      canvas.height = h + border * 2;
+    video.srcObject = null;
+    cameraBox.style.display = 'none';
+    startBtn.style.display = 'block';
+    stopBtn.style.display = 'none';
 
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    statusBox.className = 'status';
+    statusBox.textContent = 'Camera stopped.';
+  }
 
-      ctx.drawImage(img, border, border, w, h);
+  function scanLoop(timestamp) {
+    if (!scanning) return;
 
-      if (mode !== 'original') {
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const data = imageData.data;
+    animationId = requestAnimationFrame(scanLoop);
 
-        for (let i = 0; i < data.length; i += 4) {
-          const r = data[i];
-          const g = data[i + 1];
-          const b = data[i + 2];
+    if (!video.videoWidth || !video.videoHeight) return;
 
-          let gray = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+    // Do not process every single frame.
+    if (timestamp - lastDecodeTime < 120) return;
+    lastDecodeTime = timestamp;
 
-          if (mode === 'threshold') {
-            gray = gray < 128 ? 0 : 255;
-          }
+    const maxWidth = 1000;
+    const scale = Math.min(1, maxWidth / video.videoWidth);
 
-          data[i] = gray;
-          data[i + 1] = gray;
-          data[i + 2] = gray;
-        }
+    const w = Math.round(video.videoWidth * scale);
+    const h = Math.round(video.videoHeight * scale);
 
-        ctx.putImageData(imageData, 0, 0);
-      }
+    canvas.width = w;
+    canvas.height = h;
 
-      const imageData = ctx.getImageData(
-        0, 0,
-        canvas.width,
-        canvas.height
+    ctx.drawImage(video, 0, 0, w, h);
+
+    const imageData = ctx.getImageData(0, 0, w, h);
+
+    try {
+      const code = jsQR(
+        imageData.data,
+        imageData.width,
+        imageData.height,
+        { inversionAttempts: 'attemptBoth' }
       );
 
-      try {
-        const code = jsQR(
-          imageData.data,
-          imageData.width,
-          imageData.height,
-          {
-            inversionAttempts: 'attemptBoth'
-          }
+      if (code && code.data) {
+        handleDecoded(code.data);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  function handleDecoded(value) {
+    if (!scanning) return;
+
+    stopCamera();
+
+    let qrId = value;
+
+    if (value.indexOf('RLCCATT:') === 0) {
+      qrId = value.substring(8).trim();
+    }
+
+    showSuccess(value, qrId);
+  }
+
+  fileInput.addEventListener('change', function () {
+    const file = this.files && this.files[0];
+    if (!file) return;
+
+    preview.innerHTML = '';
+    statusBox.className = 'status';
+    statusBox.textContent = 'Reading QR image...';
+
+    const reader = new FileReader();
+
+    reader.onload = function(e) {
+      const img = new Image();
+
+      img.onload = function() {
+        const p = document.createElement('img');
+        p.src = e.target.result;
+        preview.appendChild(p);
+
+        decodePhoto(img);
+      };
+
+      img.onerror = function() {
+        showError('The selected image could not be opened.');
+      };
+
+      img.src = e.target.result;
+    };
+
+    reader.readAsDataURL(file);
+  });
+
+  function decodePhoto(img) {
+    const attempts = [
+      { border: .10, mode: 'original' },
+      { border: .15, mode: 'original' },
+      { border: .20, mode: 'original' },
+      { border: .10, mode: 'gray' },
+      { border: .15, mode: 'gray' },
+      { border: .10, mode: 'threshold' },
+      { border: .15, mode: 'threshold' }
+    ];
+
+    for (const attempt of attempts) {
+      const result = tryDecodePhoto(img, attempt.border, attempt.mode);
+      if (result) {
+        const qrId = result.indexOf('RLCCATT:') === 0
+          ? result.substring(8).trim()
+          : result;
+
+        showSuccess(result, qrId);
+        return;
+      }
+    }
+
+    showError('No QR code was decoded from this photo.');
+  }
+
+  function tryDecodePhoto(img, borderRatio, mode) {
+    const maxDimension = 1400;
+    const scale = Math.min(
+      1,
+      maxDimension / Math.max(img.naturalWidth, img.naturalHeight)
+    );
+
+    const w = Math.max(1, Math.round(img.naturalWidth * scale));
+    const h = Math.max(1, Math.round(img.naturalHeight * scale));
+    const border = Math.max(20, Math.round(Math.max(w, h) * borderRatio));
+
+    canvas.width = w + border * 2;
+    canvas.height = h + border * 2;
+
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, border, border, w, h);
+
+    if (mode !== 'original') {
+      const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const pixels = data.data;
+
+      for (let i = 0; i < pixels.length; i += 4) {
+        const gray = Math.round(
+          .299 * pixels[i] +
+          .587 * pixels[i + 1] +
+          .114 * pixels[i + 2]
         );
 
-        return code ? code.data : null;
-      } catch (err) {
-        console.error(err);
-        return null;
-      }
-    }
+        const value = mode === 'threshold'
+          ? (gray < 128 ? 0 : 255)
+          : gray;
 
-    function showSuccess(value) {
-      statusBox.className = 'status success';
-
-      let qrId = value;
-
-      if (value.indexOf('RLCCATT:') === 0) {
-        qrId = value.substring(8).trim();
+        pixels[i] = value;
+        pixels[i + 1] = value;
+        pixels[i + 2] = value;
       }
 
-      statusBox.innerHTML =
-        '<div class="label">QR decoded successfully</div>' +
-        '<div class="value">' + escapeHtml(value) + '</div>' +
-        '<br>' +
-        '<div class="label">QR ID</div>' +
-        '<div class="value">' + escapeHtml(qrId) + '</div>';
+      ctx.putImageData(data, 0, 0);
     }
 
-    function showError(message) {
-      statusBox.className = 'status error';
-      statusBox.textContent = message;
-    }
+    const imageData = ctx.getImageData(
+      0, 0, canvas.width, canvas.height
+    );
 
-    function escapeHtml(value) {
-      return String(value)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
+    try {
+      const code = jsQR(
+        imageData.data,
+        imageData.width,
+        imageData.height,
+        { inversionAttempts: 'attemptBoth' }
+      );
+
+      return code ? code.data : null;
+    } catch (err) {
+      console.error(err);
+      return null;
     }
-  </script>
+  }
+
+  function showSuccess(value, qrId) {
+    statusBox.className = 'status success';
+    statusBox.innerHTML =
+      '<div class="label">QR decoded successfully</div>' +
+      '<div class="value">' + escapeHtml(value) + '</div>' +
+      '<br>' +
+      '<div class="label">QR ID</div>' +
+      '<div class="value">' + escapeHtml(qrId) + '</div>';
+  }
+
+  function showError(message) {
+    statusBox.className = 'status error';
+    statusBox.textContent = message;
+  }
+
+  function escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+</script>
 </body>
 </html>
