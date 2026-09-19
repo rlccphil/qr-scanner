@@ -2,14 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>RLCC QR Scanner</title>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
   <style>
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      padding: 18px 14px 40px;
+      padding: 18px 14px 36px;
       font-family: Arial, sans-serif;
       background: #f5f6f4;
       color: #222;
@@ -24,20 +24,21 @@
     }
     h1 { margin: 0 0 7px; font-size: 25px; }
     .subtitle { margin: 0 0 18px; color: #666; line-height: 1.45; }
-    label.fieldLabel {
-      display:block;
-      margin: 12px 0 6px;
-      font-weight: 700;
-      font-size: 14px;
+    .event-card {
+      background: #f0f4ef;
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 16px;
     }
-    input[type=text], input[type=date] {
-      width: 100%;
-      padding: 13px;
-      border: 1px solid #ccc;
-      border-radius: 10px;
-      font-size: 16px;
-      background: white;
+    .event-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: #777;
+      margin-bottom: 4px;
     }
+    .event-name { font-size: 19px; font-weight: 800; color: #365233; }
+    .event-meta { margin-top: 7px; color: #555; font-size: 14px; }
     button, .upload {
       display: block;
       width: 100%;
@@ -48,14 +49,65 @@
       font-size: 16px;
       font-weight: 700;
       cursor: pointer;
+      text-align: center;
     }
-    button { background: #365233; color: white; }
+    button {
+      background: #365233;
+      color: white;
+    }
     button.secondary, .upload {
       background: #fafcf9;
       color: #365233;
       border: 2px dashed #365233;
     }
-    button:disabled { opacity: .55; cursor: default; }
+    button.stop {
+      background: #8b1e1e;
+    }
+    .mode-card {
+      margin: 14px 0 4px;
+      padding: 13px;
+      border-radius: 12px;
+      background: #f7f9f6;
+      border: 1px solid #e2e8df;
+    }
+    .mode-label {
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: #666;
+      margin-bottom: 8px;
+    }
+    .mode-options {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .mode-btn {
+      margin-top: 0;
+      padding: 11px 8px;
+      font-size: 14px;
+      border-radius: 10px;
+      background: #365233;
+      color: #fff;
+      border: 2px solid #365233;
+    }
+    .mode-btn.secondary-mode {
+      background: #fff;
+      color: #365233;
+      border: 2px solid #cbd7c8;
+    }
+    .mode-btn.active {
+      background: #365233;
+      color: #fff;
+      border-color: #365233;
+    }
+    .mode-help {
+      margin-top: 8px;
+      font-size: 12px;
+      color: #666;
+      line-height: 1.4;
+    }
     input[type=file] { display: none; }
 
     #cameraBox {
@@ -70,18 +122,18 @@
       display: block;
       width: 100%;
       height: auto;
-      min-height: 260px;
+      min-height: 280px;
       object-fit: cover;
     }
     .guide {
       position: absolute;
-      left: 14%;
-      top: 20%;
-      width: 72%;
+      left: 12%;
+      top: 16%;
+      width: 76%;
       aspect-ratio: 1;
       border: 3px solid #fff;
       border-radius: 16px;
-      box-shadow: 0 0 0 9999px rgba(0,0,0,.18);
+      box-shadow: 0 0 0 9999px rgba(0,0,0,.20);
       pointer-events: none;
     }
     .cameraText {
@@ -95,16 +147,9 @@
       text-shadow: 0 1px 3px #000;
     }
 
-    .preview { margin-top: 18px; text-align: center; }
-    .preview img {
-      max-width: 100%;
-      max-height: 360px;
-      border-radius: 8px;
-      border: 1px solid #ddd;
-    }
     .status {
       margin-top: 18px;
-      padding: 14px;
+      padding: 15px;
       border-radius: 10px;
       background: #f0f2ef;
       line-height: 1.5;
@@ -112,6 +157,8 @@
     }
     .success { background: #eaf5e7; color: #23451f; }
     .error { background: #fff0f0; color: #8b1e1e; }
+    .warning { background: #fff7df; color: #765b00; }
+
     .label {
       font-size: 12px;
       text-transform: uppercase;
@@ -119,37 +166,71 @@
       color: #777;
       margin-bottom: 5px;
     }
-    .value { font-size: 18px; font-weight: 700; }
-    .small {
-      margin-top: 8px;
-      font-size: 12px;
-      color: #777;
-      line-height: 1.45;
+    .value { font-size: 19px; font-weight: 800; }
+
+    .checkins {
+      margin-top: 16px;
+      border-top: 1px solid #e2e2e2;
+      padding-top: 14px;
     }
-    canvas { display:none; }
+    .checkin-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 9px 0;
+      border-bottom: 1px solid #eee;
+    }
+    .checkin-name { font-weight: 700; }
+    .checkin-community { color: #777; font-size: 13px; }
+    .checkin-status { color: #365233; font-weight: 800; white-space: nowrap; }
+
+    .note {
+      margin-top: 18px;
+      font-size: 13px;
+      color: #666;
+      line-height: 1.5;
+    }
+    canvas { display: none; }
+
+    .back-link {
+      display: block;
+      margin-top: 16px;
+      text-align: center;
+      color: #365233;
+      font-weight: 700;
+      text-decoration: none;
+    }
   </style>
 </head>
 
 <body>
   <div class="card">
     <h1>RLCC QR Scanner</h1>
-    <p class="subtitle">
-      Scan an RLCC member QR code and record attendance.
-    </p>
+    <p class="subtitle">Scan an RLCC member QR code and record attendance.</p>
 
-    <label class="fieldLabel" for="eventName">Event Name</label>
-    <input id="eventName" type="text" placeholder="Enter the event name">
+    <div class="event-card">
+      <div class="event-label">Event</div>
+      <div id="eventName" class="event-name">Loading event…</div>
+      <div id="eventMeta" class="event-meta"></div>
+    </div>
 
-    <label class="fieldLabel" for="eventDate">Event Date</label>
-    <input id="eventDate" type="date">
+    <div class="mode-card">
+      <div class="mode-label">Scan Mode</div>
+      <div class="mode-options" role="group" aria-label="Scan mode">
+        <button type="button" id="singleModeBtn" class="mode-btn active">1️⃣ Scan Once</button>
+        <button type="button" id="multipleModeBtn" class="mode-btn secondary-mode">🔁 Scan Multiple</button>
+      </div>
+      <div id="modeHelp" class="mode-help">The scanner will stop after one successful attendance record.</div>
+    </div>
 
     <button id="startBtn">📷 Start Camera Scan</button>
-    <button id="stopBtn" class="secondary" style="display:none;">Stop Camera</button>
+    <button id="stopBtn" class="stop" style="display:none;">Stop Camera</button>
 
     <div id="cameraBox">
       <video id="video" playsinline muted></video>
       <div class="guide"></div>
-      <div class="cameraText">Place the QR inside the square</div>
+      <div class="cameraText">Place the member QR inside the square</div>
     </div>
 
     <label class="upload" for="fileInput">
@@ -157,35 +238,49 @@
     </label>
     <input id="fileInput" type="file" accept="image/*">
 
-    <div id="preview" class="preview"></div>
+    <div id="status" class="status">
+      Ready to scan.
+    </div>
 
-    <div id="status" class="status">Ready.</div>
+    <div class="checkins">
+      <div class="label">This session</div>
+      <div id="checkinCount" class="value">0 recorded</div>
+      <div id="checkinList"></div>
+    </div>
+
+    <a id="backLink" class="back-link" href="#">← Back to Attendance App</a>
+
+    <div class="note">
+      Each scan is checked against the selected event, date, and registered community before attendance is recorded.
+    </div>
 
     <canvas id="canvas"></canvas>
-
-    <div class="small">
-      Attendance is recorded as <strong>Present</strong>.
-      Event Name and Date are required.
-    </div>
   </div>
 
 <script>
-  /*
-   * IMPORTANT:
-   * Replace this with the /exec URL of the deployed
-   * All Other Events Attendance Apps Script.
-   */
-  const API_URL = 'https://script.google.com/macros/s/AKfycbwtykv-CF1BbdusrmznNxh7ly-jvgq-wytn5fMFm_lMdWWhc99tsRwxb8ItpVYy-Ib9sQ/exec';
+  const params = new URLSearchParams(window.location.search);
+  const eventName = params.get('event') || '';
+  const dateIso = params.get('date') || '';
+  const startTime = params.get('start') || '';
+  const endTime = params.get('end') || '';
+  const token = params.get('token') || '';
+  const apiUrl = params.get('api') || '';
+  const returnUrl = params.get('return') || '';
 
+  const eventNameEl = document.getElementById('eventName');
+  const eventMetaEl = document.getElementById('eventMeta');
   const startBtn = document.getElementById('startBtn');
   const stopBtn = document.getElementById('stopBtn');
+  const singleModeBtn = document.getElementById('singleModeBtn');
+  const multipleModeBtn = document.getElementById('multipleModeBtn');
+  const modeHelp = document.getElementById('modeHelp');
   const cameraBox = document.getElementById('cameraBox');
   const video = document.getElementById('video');
   const fileInput = document.getElementById('fileInput');
-  const preview = document.getElementById('preview');
   const statusBox = document.getElementById('status');
-  const eventNameInput = document.getElementById('eventName');
-  const eventDateInput = document.getElementById('eventDate');
+  const checkinCount = document.getElementById('checkinCount');
+  const checkinList = document.getElementById('checkinList');
+  const backLink = document.getElementById('backLink');
   const canvas = document.getElementById('canvas');
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
@@ -193,28 +288,60 @@
   let scanning = false;
   let animationId = null;
   let lastDecodeTime = 0;
-  let submitting = false;
+  let scanBusy = false;
+  let recorded = [];
+  let scanMode = 'single'; // single = stop after one successful scan; multiple = keep scanning
 
-  // Allow the main Attendance App to open this scanner with:
-  // ?event=Event%20Name&date=2026-09-19
-  const params = new URLSearchParams(window.location.search);
-  if (params.get('event')) eventNameInput.value = params.get('event');
-  if (params.get('date')) eventDateInput.value = params.get('date');
+  if (eventName) {
+    eventNameEl.textContent = eventName;
+  } else {
+    eventNameEl.textContent = 'No event selected';
+  }
+
+  if (dateIso) {
+    eventMetaEl.textContent =
+      formatDate(dateIso) +
+      (startTime && endTime ? ' • ' + formatTime(startTime) + '–' + formatTime(endTime) : '');
+  } else {
+    eventMetaEl.textContent = 'Event date not supplied';
+  }
+
+  if (returnUrl) {
+    backLink.href = returnUrl;
+  } else {
+    backLink.style.display = 'none';
+  }
 
   startBtn.addEventListener('click', startCamera);
   stopBtn.addEventListener('click', stopCamera);
+  singleModeBtn.addEventListener('click', function() { setScanMode('single'); });
+  multipleModeBtn.addEventListener('click', function() { setScanMode('multiple'); });
+
+  function setScanMode(mode) {
+    scanMode = mode === 'multiple' ? 'multiple' : 'single';
+
+    const isMultiple = scanMode === 'multiple';
+    singleModeBtn.classList.toggle('active', !isMultiple);
+    multipleModeBtn.classList.toggle('active', isMultiple);
+
+    singleModeBtn.classList.toggle('secondary-mode', isMultiple);
+    multipleModeBtn.classList.toggle('secondary-mode', !isMultiple);
+
+    modeHelp.textContent = isMultiple
+      ? 'Keep the camera running and scan members one after another.'
+      : 'The scanner will stop after one successful attendance record.';
+  }
 
   async function startCamera() {
-    if (!getEventInputs()) return;
+    if (!validateSession()) return;
 
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        showError('This browser does not support camera access.');
-        return;
+        throw new Error('This browser does not support camera access.');
       }
 
       statusBox.className = 'status';
-      statusBox.textContent = 'Requesting camera access...';
+      statusBox.textContent = 'Requesting camera access…';
 
       stream = await navigator.mediaDevices.getUserMedia({
         video: {
@@ -231,17 +358,19 @@
       cameraBox.style.display = 'block';
       startBtn.style.display = 'none';
       stopBtn.style.display = 'block';
-      scanning = true;
 
-      statusBox.textContent = 'Camera is active. Point it at the QR code.';
+      scanning = true;
+      statusBox.className = 'status';
+      statusBox.textContent = 'Camera is active. Point it at a member QR code.';
       scanLoop();
+
     } catch (err) {
       console.error(err);
-      showError('Camera could not be started. Please allow camera access.');
+      showError('Camera could not be started. Please allow camera access and try again.');
     }
   }
 
-  function stopCamera(showMessage = true) {
+  function stopCamera() {
     scanning = false;
 
     if (animationId) {
@@ -258,23 +387,19 @@
     cameraBox.style.display = 'none';
     startBtn.style.display = 'block';
     stopBtn.style.display = 'none';
-
-    if (showMessage) {
-      statusBox.className = 'status';
-      statusBox.textContent = 'Camera stopped.';
-    }
   }
 
   function scanLoop(timestamp) {
     if (!scanning) return;
 
     animationId = requestAnimationFrame(scanLoop);
+
     if (!video.videoWidth || !video.videoHeight) return;
     if (timestamp - lastDecodeTime < 120) return;
 
     lastDecodeTime = timestamp;
 
-    const maxWidth = 1000;
+    const maxWidth = 1100;
     const scale = Math.min(1, maxWidth / video.videoWidth);
     const w = Math.round(video.videoWidth * scale);
     const h = Math.round(video.videoHeight * scale);
@@ -293,119 +418,17 @@
         { inversionAttempts: 'attemptBoth' }
       );
 
-      if (code && code.data) {
-        handleDecoded(code.data);
+      if (code && code.data && !scanBusy) {
+        recordDecodedQr(code.data);
       }
     } catch (err) {
       console.error(err);
     }
   }
 
-  async function handleDecoded(value) {
-    if (!scanning || submitting) return;
-
-    const inputs = getEventInputs();
-    if (!inputs) return;
-
-    submitting = true;
-    stopCamera(false);
-
-    let qrId = String(value || '').trim();
-    if (qrId.indexOf('RLCCATT:') === 0) {
-      qrId = qrId.substring(8).trim();
-    }
-
-    statusBox.className = 'status';
-    statusBox.textContent = 'QR read. Recording attendance...';
-
-    await recordAttendance(qrId, inputs.eventName, inputs.isoDate);
-  }
-
-  function getEventInputs() {
-    const eventName = eventNameInput.value.trim();
-    const isoDate = eventDateInput.value.trim();
-
-    if (!eventName) {
-      showError('Please enter the Event Name first.');
-      eventNameInput.focus();
-      return null;
-    }
-
-    if (!isoDate) {
-      showError('Please enter the Event Date first.');
-      eventDateInput.focus();
-      return null;
-    }
-
-    if (API_URL.indexOf('PASTE_YOUR_') === 0) {
-      showError('The Apps Script /exec URL has not been configured in index.html yet.');
-      return null;
-    }
-
-    return { eventName, isoDate };
-  }
-
-  function recordAttendance(qrId, eventName, isoDate) {
-    return new Promise(function(resolve) {
-      const callbackName = '__rlccQrCallback_' + Date.now();
-
-      window[callbackName] = function(result) {
-        try {
-          if (result && result.ok) {
-            showSuccess(
-              result.name || 'Member',
-              result.className || '',
-              result.status || 'P'
-            );
-          } else {
-            showError(
-              result && result.error
-                ? result.error
-                : 'Attendance could not be recorded.'
-            );
-          }
-        } finally {
-          delete window[callbackName];
-          if (script.parentNode) script.parentNode.removeChild(script);
-          submitting = false;
-        }
-        resolve(result);
-      };
-
-      const query = new URLSearchParams({
-        action: 'qrCheckin',
-        qrId: qrId,
-        isoDate: isoDate,
-        eventName: eventName,
-        status: 'P',
-        callback: callbackName
-      });
-
-      const script = document.createElement('script');
-      script.src = API_URL + '?' + query.toString();
-
-      script.onerror = function() {
-        delete window[callbackName];
-        if (script.parentNode) script.parentNode.removeChild(script);
-        submitting = false;
-        showError('Could not contact the attendance server.');
-        resolve({ ok: false });
-      };
-
-      document.body.appendChild(script);
-    });
-  }
-
   fileInput.addEventListener('change', function() {
     const file = this.files && this.files[0];
-    if (!file) return;
-
-    const inputs = getEventInputs();
-    if (!inputs) return;
-
-    preview.innerHTML = '';
-    statusBox.className = 'status';
-    statusBox.textContent = 'Reading QR image...';
+    if (!file || !validateSession()) return;
 
     const reader = new FileReader();
 
@@ -413,9 +436,6 @@
       const img = new Image();
 
       img.onload = function() {
-        const p = document.createElement('img');
-        p.src = e.target.result;
-        preview.appendChild(p);
         decodePhoto(img);
       };
 
@@ -429,7 +449,7 @@
     reader.readAsDataURL(file);
   });
 
-  function decodePhoto(img) {
+  async function decodePhoto(img) {
     const attempts = [
       { border: .10, mode: 'original' },
       { border: .15, mode: 'original' },
@@ -440,22 +460,13 @@
       { border: .15, mode: 'threshold' }
     ];
 
+    statusBox.className = 'status';
+    statusBox.textContent = 'Reading QR image…';
+
     for (const attempt of attempts) {
       const result = tryDecodePhoto(img, attempt.border, attempt.mode);
       if (result) {
-        let qrId = result;
-        if (qrId.indexOf('RLCCATT:') === 0) {
-          qrId = qrId.substring(8).trim();
-        }
-
-        statusBox.className = 'status';
-        statusBox.textContent = 'QR read. Recording attendance...';
-
-        recordAttendance(
-          qrId,
-          eventNameInput.value.trim(),
-          eventDateInput.value.trim()
-        );
+        await recordDecodedQr(result);
         return;
       }
     }
@@ -505,7 +516,9 @@
     }
 
     const imageData = ctx.getImageData(
-      0, 0, canvas.width, canvas.height
+      0, 0,
+      canvas.width,
+      canvas.height
     );
 
     try {
@@ -523,22 +536,197 @@
     }
   }
 
-  function showSuccess(name, className, status) {
-    statusBox.className = 'status success';
-    statusBox.innerHTML =
-      '<div class="label">Attendance recorded</div>' +
-      '<div class="value">✓ ' + escapeHtml(name) + '</div>' +
-      (className
-        ? '<br><div class="label">Community</div>' +
-          '<div class="value">' + escapeHtml(className) + '</div>'
-        : '') +
-      '<br><div class="label">Status</div>' +
-      '<div class="value">' + (status === 'L' ? 'Late' : 'Present') + '</div>';
+  async function recordDecodedQr(decodedText) {
+    if (scanBusy) return;
+
+    const raw = String(decodedText || '').trim();
+    const qrId = raw.indexOf('RLCCATT:') === 0
+      ? raw.substring(8).trim()
+      : raw;
+
+    if (!qrId) return;
+
+    scanBusy = true;
+    statusBox.className = 'status';
+    statusBox.textContent = 'Checking attendance…';
+
+    try {
+      const result = await callExternalApi(
+        'record',
+        qrId
+      );
+
+      if (!result || !result.ok) {
+        throw new Error(
+          result && result.error
+            ? result.error
+            : 'Attendance could not be recorded.'
+        );
+      }
+
+      addCheckin(result);
+
+      statusBox.className = 'status success';
+      statusBox.innerHTML =
+        '<div class="label">Attendance recorded</div>' +
+        '<div class="value">✓ ' + escapeHtml(result.name) + '</div>' +
+        '<br>' +
+        '<div class="label">Community</div>' +
+        '<div class="value">' + escapeHtml(result.className) + '</div>' +
+        '<br>' +
+        '<div class="label">Status</div>' +
+        '<div class="value">' + escapeHtml(statusLabel(result.status)) + '</div>';
+
+      if (scanMode === 'single') {
+        stopCamera();
+        statusBox.innerHTML +=
+          '<br><div style="font-size:13px;margin-top:8px;">Scan complete. Choose Scan Multiple if you want to scan several members.</div>';
+      } else {
+        statusBox.innerHTML +=
+          '<br><div style="font-size:13px;margin-top:8px;">Ready for the next scan.</div>';
+      }
+
+    } catch (err) {
+      statusBox.className = 'status error';
+      statusBox.textContent =
+        err && err.message ? err.message : String(err);
+    } finally {
+      setTimeout(function() {
+        scanBusy = false;
+      }, 900);
+    }
+  }
+
+  function callExternalApi(action, qrId) {
+    return new Promise(function(resolve, reject) {
+      if (!apiUrl || !token) {
+        reject(new Error('This scanner was not opened from the Attendance App.'));
+        return;
+      }
+
+      const callbackName =
+        '__rlccQrCallback_' +
+        Date.now() +
+        '_' +
+        Math.floor(Math.random() * 1000000);
+
+      let script = document.createElement('script');
+      let finished = false;
+
+      function cleanup() {
+        try { delete window[callbackName]; } catch (e) {}
+        if (script && script.parentNode) {
+          script.parentNode.removeChild(script);
+        }
+        script = null;
+      }
+
+      window[callbackName] = function(result) {
+        if (finished) return;
+        finished = true;
+        cleanup();
+        resolve(result);
+      };
+
+      script.onerror = function() {
+        if (finished) return;
+        finished = true;
+        cleanup();
+        reject(new Error('Could not contact the attendance server.'));
+      };
+
+      const query = new URLSearchParams();
+      query.set('qr_api', '1');
+      query.set('callback', callbackName);
+      query.set('action', action);
+      query.set('token', token);
+
+      if (qrId) query.set('qrId', qrId);
+      query.set('status', 'P');
+
+      script.src = apiUrl + (apiUrl.indexOf('?') >= 0 ? '&' : '?') + query.toString();
+
+      document.head.appendChild(script);
+
+      setTimeout(function() {
+        if (finished) return;
+        finished = true;
+        cleanup();
+        reject(new Error('The attendance server took too long to respond.'));
+      }, 20000);
+    });
+  }
+
+  function addCheckin(result) {
+    recorded.unshift(result);
+
+    checkinCount.textContent =
+      recorded.length + ' recorded';
+
+    checkinList.innerHTML = recorded.map(function(item) {
+      return (
+        '<div class="checkin-row">' +
+          '<div>' +
+            '<div class="checkin-name">' + escapeHtml(item.name) + '</div>' +
+            '<div class="checkin-community">' + escapeHtml(item.className) + '</div>' +
+          '</div>' +
+          '<div class="checkin-status">✓ Present</div>' +
+        '</div>'
+      );
+    }).join('');
+  }
+
+  function validateSession() {
+    if (!eventName || !dateIso || !token || !apiUrl) {
+      showError(
+        'This scanner session is missing the event information. ' +
+        'Please return to the Attendance App and tap Scan Attendance again.'
+      );
+      return false;
+    }
+    return true;
   }
 
   function showError(message) {
     statusBox.className = 'status error';
     statusBox.textContent = message;
+  }
+
+  function statusLabel(status) {
+    if (status === 'L') return 'Late';
+    if (status === 'A' || status === 0) return 'Absent';
+    return 'Present';
+  }
+
+  function formatDate(iso) {
+    const parts = iso.split('-');
+    if (parts.length !== 3) return iso;
+
+    const d = new Date(
+      Number(parts[0]),
+      Number(parts[1]) - 1,
+      Number(parts[2])
+    );
+
+    return d.toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  }
+
+  function formatTime(value) {
+    const parts = String(value).split(':');
+    if (parts.length < 2) return value;
+
+    let h = Number(parts[0]);
+    const m = parts[1];
+    const suffix = h >= 12 ? 'PM' : 'AM';
+
+    h = h % 12;
+    if (h === 0) h = 12;
+
+    return h + ':' + m + ' ' + suffix;
   }
 
   function escapeHtml(value) {
