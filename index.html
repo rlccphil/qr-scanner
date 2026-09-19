@@ -605,7 +605,16 @@
       if (scanMode === 'single') {
         stopCamera();
         statusBox.innerHTML +=
-          '<br><div style="font-size:13px;margin-top:8px;">Scan complete. Choose Scan Multiple if you want to scan several members.</div>';
+          '<br><div style="font-size:13px;margin-top:8px;">Scan complete. Returning to the Attendance App…</div>';
+
+        // Return automatically to the All Other Events Attendance app after
+        // one successful scan. The Attendance App supplies this URL when it
+        // launches the external scanner.
+        if (returnUrl) {
+          setTimeout(function() {
+            window.location.href = returnUrl;
+          }, 700);
+        }
       } else {
         statusBox.innerHTML +=
           '<br><div style="font-size:13px;margin-top:8px;">Ready for the next scan.</div>';
