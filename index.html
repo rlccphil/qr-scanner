@@ -9,7 +9,7 @@
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      padding: 20px 14px 40px;
+      padding: 18px 14px 40px;
       font-family: Arial, sans-serif;
       background: #f5f6f4;
       color: #222;
@@ -24,6 +24,20 @@
     }
     h1 { margin: 0 0 7px; font-size: 25px; }
     .subtitle { margin: 0 0 18px; color: #666; line-height: 1.45; }
+    label.fieldLabel {
+      display:block;
+      margin: 12px 0 6px;
+      font-weight: 700;
+      font-size: 14px;
+    }
+    input[type=text], input[type=date] {
+      width: 100%;
+      padding: 13px;
+      border: 1px solid #ccc;
+      border-radius: 10px;
+      font-size: 16px;
+      background: white;
+    }
     button, .upload {
       display: block;
       width: 100%;
@@ -35,10 +49,7 @@
       font-weight: 700;
       cursor: pointer;
     }
-    button {
-      background: #365233;
-      color: white;
-    }
+    button { background: #365233; color: white; }
     button.secondary, .upload {
       background: #fafcf9;
       color: #365233;
@@ -84,10 +95,7 @@
       text-shadow: 0 1px 3px #000;
     }
 
-    .preview {
-      margin-top: 18px;
-      text-align: center;
-    }
+    .preview { margin-top: 18px; text-align: center; }
     .preview img {
       max-width: 100%;
       max-height: 360px;
@@ -112,13 +120,13 @@
       margin-bottom: 5px;
     }
     .value { font-size: 18px; font-weight: 700; }
-    .note {
-      margin-top: 18px;
-      font-size: 13px;
-      color: #666;
-      line-height: 1.5;
+    .small {
+      margin-top: 8px;
+      font-size: 12px;
+      color: #777;
+      line-height: 1.45;
     }
-    canvas { display: none; }
+    canvas { display:none; }
   </style>
 </head>
 
@@ -126,8 +134,14 @@
   <div class="card">
     <h1>RLCC QR Scanner</h1>
     <p class="subtitle">
-      Scan an RLCC member QR code using your camera, or upload a QR image.
+      Scan an RLCC member QR code and record attendance.
     </p>
+
+    <label class="fieldLabel" for="eventName">Event Name</label>
+    <input id="eventName" type="text" placeholder="Enter the event name">
+
+    <label class="fieldLabel" for="eventDate">Event Date</label>
+    <input id="eventDate" type="date">
 
     <button id="startBtn">📷 Start Camera Scan</button>
     <button id="stopBtn" class="secondary" style="display:none;">Stop Camera</button>
@@ -145,19 +159,24 @@
 
     <div id="preview" class="preview"></div>
 
-    <div id="status" class="status">
-      Ready.
-    </div>
+    <div id="status" class="status">Ready.</div>
 
     <canvas id="canvas"></canvas>
 
-    <div class="note">
-      <strong>Camera note:</strong> Your browser must allow camera access.
-      Photo scanning remains available if the camera has difficulty reading a QR.
+    <div class="small">
+      Attendance is recorded as <strong>Present</strong>.
+      Event Name and Date are required.
     </div>
   </div>
 
 <script>
+  /*
+   * IMPORTANT:
+   * Replace this with the /exec URL of the deployed
+   * All Other Events Attendance Apps Script.
+   */
+  const API_URL = 'PASTE_YOUR_ATTENDANCE_APP_EXEC_URL_HERE';
+
   const startBtn = document.getElementById('startBtn');
   const stopBtn = document.getElementById('stopBtn');
   const cameraBox = document.getElementById('cameraBox');
@@ -165,6 +184,8 @@
   const fileInput = document.getElementById('fileInput');
   const preview = document.getElementById('preview');
   const statusBox = document.getElementById('status');
+  const eventNameInput = document.getElementById('eventName');
+  const eventDateInput = document.getElementById('eventDate');
   const canvas = document.getElementById('canvas');
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
@@ -172,11 +193,20 @@
   let scanning = false;
   let animationId = null;
   let lastDecodeTime = 0;
+  let submitting = false;
+
+  // Allow the main Attendance App to open this scanner with:
+  // ?event=Event%20Name&date=2026-09-19
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('event')) eventNameInput.value = params.get('event');
+  if (params.get('date')) eventDateInput.value = params.get('date');
 
   startBtn.addEventListener('click', startCamera);
   stopBtn.addEventListener('click', stopCamera);
 
   async function startCamera() {
+    if (!getEventInputs()) return;
+
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         showError('This browser does not support camera access.');
@@ -201,20 +231,17 @@
       cameraBox.style.display = 'block';
       startBtn.style.display = 'none';
       stopBtn.style.display = 'block';
-
       scanning = true;
+
       statusBox.textContent = 'Camera is active. Point it at the QR code.';
       scanLoop();
-
     } catch (err) {
       console.error(err);
-      showError(
-        'Camera could not be started. Please allow camera access in Safari/browser settings.'
-      );
+      showError('Camera could not be started. Please allow camera access.');
     }
   }
 
-  function stopCamera() {
+  function stopCamera(showMessage = true) {
     scanning = false;
 
     if (animationId) {
@@ -232,30 +259,28 @@
     startBtn.style.display = 'block';
     stopBtn.style.display = 'none';
 
-    statusBox.className = 'status';
-    statusBox.textContent = 'Camera stopped.';
+    if (showMessage) {
+      statusBox.className = 'status';
+      statusBox.textContent = 'Camera stopped.';
+    }
   }
 
   function scanLoop(timestamp) {
     if (!scanning) return;
 
     animationId = requestAnimationFrame(scanLoop);
-
     if (!video.videoWidth || !video.videoHeight) return;
-
-    // Do not process every single frame.
     if (timestamp - lastDecodeTime < 120) return;
+
     lastDecodeTime = timestamp;
 
     const maxWidth = 1000;
     const scale = Math.min(1, maxWidth / video.videoWidth);
-
     const w = Math.round(video.videoWidth * scale);
     const h = Math.round(video.videoHeight * scale);
 
     canvas.width = w;
     canvas.height = h;
-
     ctx.drawImage(video, 0, 0, w, h);
 
     const imageData = ctx.getImageData(0, 0, w, h);
@@ -276,23 +301,107 @@
     }
   }
 
-  function handleDecoded(value) {
-    if (!scanning) return;
+  async function handleDecoded(value) {
+    if (!scanning || submitting) return;
 
-    stopCamera();
+    const inputs = getEventInputs();
+    if (!inputs) return;
 
-    let qrId = value;
+    submitting = true;
+    stopCamera(false);
 
-    if (value.indexOf('RLCCATT:') === 0) {
-      qrId = value.substring(8).trim();
+    let qrId = String(value || '').trim();
+    if (qrId.indexOf('RLCCATT:') === 0) {
+      qrId = qrId.substring(8).trim();
     }
 
-    showSuccess(value, qrId);
+    statusBox.className = 'status';
+    statusBox.textContent = 'QR read. Recording attendance...';
+
+    await recordAttendance(qrId, inputs.eventName, inputs.isoDate);
   }
 
-  fileInput.addEventListener('change', function () {
+  function getEventInputs() {
+    const eventName = eventNameInput.value.trim();
+    const isoDate = eventDateInput.value.trim();
+
+    if (!eventName) {
+      showError('Please enter the Event Name first.');
+      eventNameInput.focus();
+      return null;
+    }
+
+    if (!isoDate) {
+      showError('Please enter the Event Date first.');
+      eventDateInput.focus();
+      return null;
+    }
+
+    if (API_URL.indexOf('PASTE_YOUR_') === 0) {
+      showError('The Apps Script /exec URL has not been configured in index.html yet.');
+      return null;
+    }
+
+    return { eventName, isoDate };
+  }
+
+  function recordAttendance(qrId, eventName, isoDate) {
+    return new Promise(function(resolve) {
+      const callbackName = '__rlccQrCallback_' + Date.now();
+
+      window[callbackName] = function(result) {
+        try {
+          if (result && result.ok) {
+            showSuccess(
+              result.name || 'Member',
+              result.className || '',
+              result.status || 'P'
+            );
+          } else {
+            showError(
+              result && result.error
+                ? result.error
+                : 'Attendance could not be recorded.'
+            );
+          }
+        } finally {
+          delete window[callbackName];
+          if (script.parentNode) script.parentNode.removeChild(script);
+          submitting = false;
+        }
+        resolve(result);
+      };
+
+      const query = new URLSearchParams({
+        action: 'qrCheckin',
+        qrId: qrId,
+        isoDate: isoDate,
+        eventName: eventName,
+        status: 'P',
+        callback: callbackName
+      });
+
+      const script = document.createElement('script');
+      script.src = API_URL + '?' + query.toString();
+
+      script.onerror = function() {
+        delete window[callbackName];
+        if (script.parentNode) script.parentNode.removeChild(script);
+        submitting = false;
+        showError('Could not contact the attendance server.');
+        resolve({ ok: false });
+      };
+
+      document.body.appendChild(script);
+    });
+  }
+
+  fileInput.addEventListener('change', function() {
     const file = this.files && this.files[0];
     if (!file) return;
+
+    const inputs = getEventInputs();
+    if (!inputs) return;
 
     preview.innerHTML = '';
     statusBox.className = 'status';
@@ -307,7 +416,6 @@
         const p = document.createElement('img');
         p.src = e.target.result;
         preview.appendChild(p);
-
         decodePhoto(img);
       };
 
@@ -335,11 +443,19 @@
     for (const attempt of attempts) {
       const result = tryDecodePhoto(img, attempt.border, attempt.mode);
       if (result) {
-        const qrId = result.indexOf('RLCCATT:') === 0
-          ? result.substring(8).trim()
-          : result;
+        let qrId = result;
+        if (qrId.indexOf('RLCCATT:') === 0) {
+          qrId = qrId.substring(8).trim();
+        }
 
-        showSuccess(result, qrId);
+        statusBox.className = 'status';
+        statusBox.textContent = 'QR read. Recording attendance...';
+
+        recordAttendance(
+          qrId,
+          eventNameInput.value.trim(),
+          eventDateInput.value.trim()
+        );
         return;
       }
     }
@@ -407,14 +523,17 @@
     }
   }
 
-  function showSuccess(value, qrId) {
+  function showSuccess(name, className, status) {
     statusBox.className = 'status success';
     statusBox.innerHTML =
-      '<div class="label">QR decoded successfully</div>' +
-      '<div class="value">' + escapeHtml(value) + '</div>' +
-      '<br>' +
-      '<div class="label">QR ID</div>' +
-      '<div class="value">' + escapeHtml(qrId) + '</div>';
+      '<div class="label">Attendance recorded</div>' +
+      '<div class="value">✓ ' + escapeHtml(name) + '</div>' +
+      (className
+        ? '<br><div class="label">Community</div>' +
+          '<div class="value">' + escapeHtml(className) + '</div>'
+        : '') +
+      '<br><div class="label">Status</div>' +
+      '<div class="value">' + (status === 'L' ? 'Late' : 'Present') + '</div>';
   }
 
   function showError(message) {
